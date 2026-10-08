@@ -1,0 +1,6 @@
+{
+  "framework": null,
+  "buildCommand": "node build-config.cjs",
+  "outputDirectory": "public",
+  "installCommand": ""
+}
