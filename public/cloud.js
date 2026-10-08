@@ -1,5 +1,5 @@
 'use strict';
-let loginEmail='',loadId=0,legacy=[];
+let authBusy=false,loadId=0,legacy=[];
 function controls(){
  for(const selector of ['#add','#delete','#csv','#backup','#restore','#migrate'])$(selector).disabled=!ready||busy;
  for(const button of form.querySelectorAll('button,input,textarea'))button.disabled=busy;
@@ -35,7 +35,7 @@ async function useSession(session){
  const next=session?.user||null;if(next?.id===user?.id&&ready)return;
  epoch++;loadId++;user=next;ready=false;readings=[];editing=null;limit=10;entry.close();$('#options').close();render();
  $('#authBox').classList.toggle('hidden',!!user);$('#workspace').classList.toggle('hidden',!user);$('#accountEmail').textContent=user?.email||'';controls();
- if(user){$('#codeForm').reset();await loadReadings();}
+ if(user){$('#password').value='';await loadReadings();}
 }
 async function writeToCloud(action){
  if(!ready||!user)throw Error('Sign in and load your cloud readings first.');if(busy)throw Error('A save is already in progress.');
@@ -70,20 +70,22 @@ $('#signOut').onclick=async()=>{
  if(busy)return;
  const {error}=await client.auth.signOut({scope:'local'});
  if(error){$('#cloudStatus').textContent='Could not sign out. '+error.message;return;}
- await useSession(null);$('#emailForm').reset();$('#codeForm').classList.add('hidden');$('#emailForm').classList.remove('hidden');$('#authError').textContent='';
+ await useSession(null);$('#emailForm').reset();$('#authError').textContent='';
 };
 $('#emailForm').onsubmit=async e=>{
- e.preventDefault();$('#authError').textContent='';$('#sendCode').disabled=true;
- try{if(!client)throw Error('Cloud storage is not configured.');loginEmail=$('#email').value.trim();const {error}=await client.auth.signInWithOtp({email:loginEmail,options:{shouldCreateUser:true}});if(error)throw error;$('#emailForm').classList.add('hidden');$('#codeForm').classList.remove('hidden');$('#codeHint').textContent=`Enter the sign-in code sent to ${loginEmail}.`;$('#code').focus();}
- catch(e){$('#authError').textContent=e.message;}
- finally{$('#sendCode').disabled=!client;}
-};
-$('#changeEmail').onclick=()=>{$('#codeForm').classList.add('hidden');$('#emailForm').classList.remove('hidden');$('#code').value='';$('#authError').textContent='';};
-$('#codeForm').onsubmit=async e=>{
- e.preventDefault();$('#authError').textContent='';$('#verifyCode').disabled=true;
- try{const {data,error}=await client.auth.verifyOtp({email:loginEmail,token:$('#code').value.trim(),type:'email'});if(error)throw error;if(!data.session)throw Error('Sign-in was not completed.');await useSession(data.session);}
- catch(e){$('#authError').textContent=e.message;}
- finally{$('#verifyCode').disabled=false;}
+ e.preventDefault();if(authBusy)return;authBusy=true;$('#authError').textContent='';$('#signIn').disabled=true;$('#signUp').disabled=true;
+ const signup=e.submitter?.id==='signUp';
+ try{
+  if(!client)throw Error('Cloud storage is not configured.');
+  const email=$('#email').value.trim(),password=$('#password').value;
+  if(!email||!password)throw Error('Enter your email and password.');
+  if(signup&&password.length<8)throw Error('Use a password of at least 8 characters.');
+  const {data,error}=signup?await client.auth.signUp({email,password}):await client.auth.signInWithPassword({email,password});
+  if(error)throw error;
+  if(!data.session)throw Error(signup?'Account creation did not complete sign-in. Email confirmation must be disabled in Supabase to use this app without email delivery.':'Sign-in was not completed.');
+  $('#password').value='';await useSession(data.session);
+ }catch(e){$('#authError').textContent=e.message;}
+ finally{authBusy=false;$('#signIn').disabled=!client;$('#signUp').disabled=!client;}
 };
 async function startCloud(){
  controls();
@@ -92,7 +94,7 @@ async function startCloud(){
   if(!window.supabase?.createClient)throw Error('The sign-in service could not load. Reopen the app online.');
   client=window.supabase.createClient(config.url,config.key,{auth:{detectSessionInUrl:false}});
   client.auth.onAuthStateChange((event,session)=>{setTimeout(()=>useSession(session),0);});
-  const {data,error}=await client.auth.getSession();if(error)throw error;await useSession(data.session);$('#sendCode').disabled=false;
+  const {data,error}=await client.auth.getSession();if(error)throw error;await useSession(data.session);$('#signIn').disabled=false;$('#signUp').disabled=false;
  }catch(e){$('#authError').textContent=e.message;}
 }
 startCloud();

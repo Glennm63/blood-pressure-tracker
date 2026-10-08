@@ -2,7 +2,7 @@
 
 This version is prepared for GitHub and Vercel. It has not yet been connected to a live Supabase project or deployed. The original live device-only app remains unchanged. Do not use the older ZIP for cloud storage.
 
-Users sign in using an email code. Every successful save goes to Supabase PostgreSQL. Clearing browser data removes the login session, but confirmed cloud readings are retrieved after signing in again with the same email. Users have separate records, enforced by database row-level security. Readings are not cached in browser storage by this version. Internet access is required for reading and writing. Unsaved form entries are not protected against closing the page or clearing browser data.
+Users create an account and sign in using their email and password. No email delivery service is required. Every successful save goes to Supabase PostgreSQL. Clearing browser data removes the login session, but confirmed cloud readings are retrieved after signing in again with the same email. Users have separate records, enforced by database row-level security. Readings are not cached in browser storage by this version. Internet access is required for reading and writing. Unsaved form entries are not protected against closing the page or clearing browser data.
 
 Latest readings, history, graphs and 7/30/365-day averages are retained. CSV/JSON backups remain available. Database owners and administrators retain administrative access; this is not end-to-end encryption.
 
@@ -10,11 +10,10 @@ Latest readings, history, graphs and 7/30/365-day averages are retained. CSV/JSO
 
 1. Create a Supabase project in your own account. Choose a suitable region, such as Sydney if available. Keep the database password private.
 2. Run the entire `database/schema.sql` once in the SQL Editor. It creates only `public.pressure_readings` and its four access policies, transactionally. It will stop rather than silently overwrite an existing table.
-3. Enable the Email authentication provider and allow new user signups. Keep email verification enabled.
-4. In Authentication → Email Templates, change both the Magic Link and Confirm Signup templates to include a code: `<p>Your Pressure sign-in code is: <strong>{{ .Token }}</strong></p>`. The app uses codes rather than redirect links. Each user enters the code on the same phone where they requested it.
-5. Configure custom SMTP for multiple users. Supabase's default sender only sends to project team addresses and has restrictive trial limits. Configure your email service's sender and SMTP details in Supabase, not in GitHub or the app. The app never receives these credentials.
-6. Set the Site URL to your final Vercel production URL and use its exact origin for any required redirect configuration.
-7. Copy the project's HTTPS URL and **publishable key** from the project settings. The legacy **anon key** also works. These values are intended for the browser and are safe to include only with the supplied access policies active. Never use a service-role key, secret key, database password or personal access token in the app.
+3. Enable the Email authentication provider and allow new user signups. Turn **Confirm email** off under Authentication → Sign In / Providers so signup returns a session without sending email. This setting is required; the app cannot change it.
+4. Email templates and custom SMTP are not required. The email is an unverified account identifier. Users must use the same email and password on each phone. No email password-reset flow is available; save passwords in a password manager. Existing email-code accounts need a password set through an authorized administrator before they can use password login.
+5. Set the Site URL to your final Vercel production URL and use its exact origin for any required redirect configuration.
+6. Copy the project's HTTPS URL and **publishable key** from the project settings. The legacy **anon key** also works. These values are intended for the browser and are safe to include only with the supplied access policies active. Never use a service-role key, secret key, database password or personal access token in the app.
 
 ## 2. GitHub and Vercel
 
@@ -24,7 +23,7 @@ Latest readings, history, graphs and 7/30/365-day averages are retained. CSV/JSO
    - `SUPABASE_URL`: your project URL.
    - `SUPABASE_PUBLISHABLE_KEY`: your publishable or legacy anon key.
 4. Deploy. The build will fail if either value is missing or invalid, or if a secret/service-role key is used. It generates `public/config.js` using only the two public values.
-5. Open the deployed URL in Safari, request a code, enter it and add Pressure to the Home Screen using Share → Add to Home Screen.
+5. Open the deployed URL in Safari, create an account or sign in with email and password, and add Pressure to the Home Screen using Share → Add to Home Screen.
 
 ## 3. Transfer existing readings
 
@@ -44,14 +43,14 @@ Latest readings, history, graphs and 7/30/365-day averages are retained. CSV/JSO
 
 `npm ci && npm test` runs the supplied DOM and PostgreSQL tests (Node 22+). Vercel does not install these test dependencies. Tests cover acknowledged cloud writes, network failures, browser-clearing recovery using a persistent backend stub, account switching, stale response protection, migration idempotence, safe note rendering, averages, configuration validation and the actual supplied PostgreSQL access policies using PGlite. The PGlite fixture emulates Supabase roles and `auth.uid()`; it is not a hosted Supabase integration test.
 
-Live email delivery, hosted API authentication, project configuration, iPhone UI and Vercel deployment still require activation tests. Cloud storage protects confirmed readings from browser clearing; it does not prevent deliberate deletion or provider/account loss. Arrange database backups appropriate to your chosen service plan. There is no diagnosis or treatment advice.
+Hosted password authentication, project configuration, iPhone UI and Vercel deployment still require activation tests. Cloud storage protects confirmed readings from browser clearing; it does not prevent deliberate deletion or provider/account loss. Arrange database backups appropriate to your chosen service plan. There is no diagnosis or treatment advice.
 
 ## Included dependency
 
 The browser bundle of the official Supabase JavaScript SDK is vendored at `public/vendor/supabase.js`, version 2.117.3, with its MIT license. No runtime CDN or npm installation is needed to deploy. A small replacement service worker removes the device-only version's offline cache when upgrading the same URL; cloud records are never stored in that cache.
 
 Official references:
-- https://supabase.com/docs/guides/auth/auth-email-passwordless
+- https://supabase.com/docs/guides/auth/passwords
 - https://supabase.com/docs/guides/auth/auth-smtp
 - https://supabase.com/docs/guides/database/postgres/row-level-security
 - https://supabase.com/docs/guides/getting-started/api-keys
