@@ -21,6 +21,7 @@ const run=s=>vm.runInContext(s,ctx),$=s=>w.document.querySelector(s),tick=()=>ne
 const a={id:'user-a',email:'a@example.test'},b={id:'user-b',email:'b@example.test'};
 (async()=>{
  await tick();assert($('#workspace').classList.contains('hidden'));
+ $('#forgotPassword').click();assert($('#passwordHelp').open);assert($('#passwordHelp').textContent.includes('verify your identity'));assert.equal(credentials.size,0);assert.equal(records.size,0);$('#passwordHelpDone').click();assert(!$('#passwordHelp').open);
  account=a;$('#email').value=a.email;$('#password').value='short';await $('#emailForm').onsubmit({preventDefault(){},submitter:$('#signUp')});assert.equal(credentials.size,0);assert($('#authError').textContent.includes('at least 8'));
  $('#password').value='strong-test-password';authError='Network unavailable';await $('#emailForm').onsubmit({preventDefault(){},submitter:$('#signUp')});assert.equal($('#authError').textContent,'Network unavailable');assert($('#workspace').classList.contains('hidden'));assert(!$('#signUp').disabled);authError=null;
  signupSession=false;await $('#emailForm').onsubmit({preventDefault(){},submitter:$('#signUp')});assert($('#authError').textContent.includes('Email confirmation must be disabled'));assert($('#workspace').classList.contains('hidden'));signupSession=true;

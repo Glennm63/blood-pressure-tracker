@@ -72,6 +72,8 @@ $('#signOut').onclick=async()=>{
  if(error){$('#cloudStatus').textContent='Could not sign out. '+error.message;return;}
  await useSession(null);$('#emailForm').reset();$('#authError').textContent='';
 };
+$('#forgotPassword').onclick=()=>$('#passwordHelp').showModal();
+$('#passwordHelpDone').onclick=()=>$('#passwordHelp').close();
 $('#emailForm').onsubmit=async e=>{
  e.preventDefault();if(authBusy)return;authBusy=true;$('#authError').textContent='';$('#signIn').disabled=true;$('#signUp').disabled=true;
  const signup=e.submitter?.id==='signUp';

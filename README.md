@@ -11,7 +11,7 @@ Latest readings, history, graphs and 7/30/365-day averages are retained. CSV/JSO
 1. Create a Supabase project in your own account. Choose a suitable region, such as Sydney if available. Keep the database password private.
 2. Run the entire `database/schema.sql` once in the SQL Editor. It creates only `public.pressure_readings` and its four access policies, transactionally. It will stop rather than silently overwrite an existing table.
 3. Enable the Email authentication provider and allow new user signups. Turn **Confirm email** off under Authentication → Sign In / Providers so signup returns a session without sending email. This setting is required; the app cannot change it.
-4. Email templates and custom SMTP are not required. The email is an unverified account identifier. Users must use the same email and password on each phone. No email password-reset flow is available; save passwords in a password manager. Existing email-code accounts need a password set through an authorized administrator before they can use password login.
+4. Email templates and custom SMTP are not required. The email is an unverified account identifier. Users must use the same email and password on each phone. Password recovery is manual: users contact the app administrator, who verifies their identity and sets a new password on their existing account. No recovery email or SMTP provider is needed. Save passwords in a password manager. See the manual reset instructions below.
 5. Set the Site URL to your final Vercel production URL and use its exact origin for any required redirect configuration.
 6. Copy the project's HTTPS URL and **publishable key** from the project settings. The legacy **anon key** also works. These values are intended for the browser and are safe to include only with the supplied access policies active. Never use a service-role key, secret key, database password or personal access token in the app.
 
@@ -54,3 +54,20 @@ Official references:
 - https://supabase.com/docs/guides/auth/auth-smtp
 - https://supabase.com/docs/guides/database/postgres/row-level-security
 - https://supabase.com/docs/guides/getting-started/api-keys
+
+## Manual password resets (administrator only)
+
+The login screen’s **Forgot password?** button explains how to request a manual reset. It does not send an email or reset anything automatically. Tell your users how to contact you when inviting them to the app. Verify their identity through a trusted channel; knowing an account email alone is not proof of ownership.
+
+From an interactive terminal in the repository root:
+
+```sh
+python3 scripts/manual-password-reset.py --check
+python3 scripts/manual-password-reset.py
+```
+
+Configure `SUPABASE_URL` and `SUPABASE_ACCESS_TOKEN` securely in the administrator’s cloud environment. The access token must have administrative access to the selected project, and network access must allow `api.supabase.com` and the project hostname. Never put the access token or service-role key in the website, Vercel app variables, source control, chat, or logs. The tool retrieves the project’s service-role key into memory and uses the Supabase Admin API; only `public` is deployed by the existing Vercel configuration.
+
+The tool finds the existing account by email, requires confirmation of the email, and prompts for the new password twice with hidden input. It updates only the password; it does not create another account, change the user ID, confirm an email, or modify readings. Share the new password privately with the verified account owner, who then signs in using their existing email. There is no automatic requirement to change this password at next login. Revoke temporary administrative access when you no longer need it.
+
+Validation: `PYTHONDONTWRITEBYTECODE=1 python3 tests/manual-password-reset.py` exercises account selection and password updates with mocked requests. `--check` verifies real administrative connectivity without changing accounts. An actual password reset is performed only when an administrator selects and confirms a user.
