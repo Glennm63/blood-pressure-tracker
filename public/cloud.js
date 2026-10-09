@@ -1,9 +1,11 @@
 'use strict';
-let authBusy=false,loadId=0,legacy=[];
+let authBusy=false,passkeyBusy=false,loadId=0,legacy=[];
 function controls(){
  for(const selector of ['#add','#delete','#csv','#backup','#restore','#migrate'])$(selector).disabled=!ready||busy;
  for(const button of form.querySelectorAll('button,input,textarea'))button.disabled=busy;
- $('#signOut').disabled=busy;$('#refresh').disabled=busy||!user;$('#toolsOpen').disabled=!user;
+ $('#registerPasskey').disabled=!ready||busy||passkeyBusy||!passkeySupported();
+ $('#passkeySignIn').disabled=!client||authBusy||!passkeySupported();
+ $('#signOut').disabled=busy||passkeyBusy;$('#refresh').disabled=busy||!user;$('#toolsOpen').disabled=!user;
 }
 function checkAccount(owner,generation){if(!user||user.id!==owner||epoch!==generation)throw Error('Your account changed. Sign in again to view the saved result.');}
 function localReadings(){
@@ -33,7 +35,7 @@ async function loadReadings(){
 }
 async function useSession(session){
  const next=session?.user||null;if(next?.id===user?.id&&ready)return;
- epoch++;loadId++;user=next;ready=false;readings=[];editing=null;limit=10;entry.close();$('#options').close();render();
+ epoch++;loadId++;user=next;ready=false;readings=[];editing=null;limit=10;entry.close();$('#options').close();$('#passkeyError').textContent='';render();
  $('#authBox').classList.toggle('hidden',!!user);$('#workspace').classList.toggle('hidden',!user);$('#accountEmail').textContent=user?.email||'';controls();
  if(user){$('#password').value='';await loadReadings();}
 }
@@ -67,7 +69,7 @@ $('#migrate').onclick=async()=>{
 };
 $('#refresh').onclick=()=>loadReadings();
 $('#signOut').onclick=async()=>{
- if(busy)return;
+ if(busy||passkeyBusy)return;
  const {error}=await client.auth.signOut({scope:'local'});
  if(error){$('#cloudStatus').textContent='Could not sign out. '+error.message;return;}
  await useSession(null);$('#emailForm').reset();$('#authError').textContent='';
@@ -75,7 +77,7 @@ $('#signOut').onclick=async()=>{
 $('#forgotPassword').onclick=()=>$('#passwordHelp').showModal();
 $('#passwordHelpDone').onclick=()=>$('#passwordHelp').close();
 $('#emailForm').onsubmit=async e=>{
- e.preventDefault();if(authBusy)return;authBusy=true;$('#authError').textContent='';$('#signIn').disabled=true;$('#signUp').disabled=true;
+ e.preventDefault();if(authBusy)return;authBusy=true;controls();$('#authError').textContent='';$('#signIn').disabled=true;$('#signUp').disabled=true;
  const signup=e.submitter?.id==='signUp';
  try{
   if(!client)throw Error('Cloud storage is not configured.');
@@ -87,16 +89,51 @@ $('#emailForm').onsubmit=async e=>{
   if(!data.session)throw Error(signup?'Account creation did not complete sign-in. Email confirmation must be disabled in Supabase to use this app without email delivery.':'Sign-in was not completed.');
   $('#password').value='';await useSession(data.session);
  }catch(e){$('#authError').textContent=e.message;}
- finally{authBusy=false;$('#signIn').disabled=!client;$('#signUp').disabled=!client;}
+ finally{authBusy=false;$('#signIn').disabled=!client;$('#signUp').disabled=!client;controls();}
 };
+function passkeySupported(){
+ return window.isSecureContext===true&&typeof window.PublicKeyCredential==='function'&&!!navigator.credentials;
+}
+function passkeyMessage(error){
+ if(error?.code==='passkey_disabled')return 'Passkey sign-in is not enabled yet. Use your email and password.';
+ if(error?.name==='NotAllowedError'||['ERROR_CEREMONY_ABORTED','ERROR_PASSTHROUGH_SEE_CAUSE'].includes(error?.code))return 'Passkey request was cancelled or could not complete. You can retry or use your password.';
+ return error?.message||'The passkey request did not complete. Please try again.';
+}
+$('#passkeySignIn').onclick=async()=>{
+ if(authBusy||!client)return;
+ if(!passkeySupported()){$('#authError').textContent='Passkeys require a supported browser on the secure website. Use your email and password.';return;}
+ authBusy=true;$('#authError').textContent='';$('#signIn').disabled=true;$('#signUp').disabled=true;controls();
+ try{
+  const {data,error}=await client.auth.signInWithPasskey();
+  if(error)throw error;
+  if(!data?.session)throw Error('Passkey sign-in was not completed. Try again or use your password.');
+  $('#password').value='';await useSession(data.session);
+ }catch(error){$('#authError').textContent=passkeyMessage(error);}
+ finally{authBusy=false;$('#signIn').disabled=!client;$('#signUp').disabled=!client;controls();}
+};
+$('#registerPasskey').onclick=async()=>{
+ if(!ready||!user||busy||passkeyBusy)return;
+ $('#passkeyError').textContent='';
+ if(!passkeySupported()){$('#passkeyError').textContent='Passkeys require a supported browser on the secure website.';return;}
+ const owner=user.id,generation=epoch;passkeyBusy=true;controls();
+ try{
+  const {data,error}=await client.auth.registerPasskey();
+  checkAccount(owner,generation);
+  if(error)throw error;
+  if(!data?.id)throw Error('Passkey registration was not confirmed. Please try again.');
+  toast('Passkey added to your account');
+ }catch(error){if(user?.id===owner&&epoch===generation)$('#passkeyError').textContent=passkeyMessage(error);}
+ finally{passkeyBusy=false;controls();}
+};
+if(!passkeySupported())$('#passkeyHint').textContent='Passkeys are unavailable in this browser. You can still sign in with your email and password.';
 async function startCloud(){
  controls();
  try{
   const config=window.PRESSURE_CONFIG;if(!config?.url||!config?.key)throw Error('Cloud storage has not been configured yet.');
   if(!window.supabase?.createClient)throw Error('The sign-in service could not load. Reopen the app online.');
-  client=window.supabase.createClient(config.url,config.key,{auth:{detectSessionInUrl:false}});
+  client=window.supabase.createClient(config.url,config.key,{auth:{detectSessionInUrl:false,experimental:{passkey:true}}});
   client.auth.onAuthStateChange((event,session)=>{setTimeout(()=>useSession(session),0);});
-  const {data,error}=await client.auth.getSession();if(error)throw error;await useSession(data.session);$('#signIn').disabled=false;$('#signUp').disabled=false;
+  const {data,error}=await client.auth.getSession();if(error)throw error;await useSession(data.session);$('#signIn').disabled=false;$('#signUp').disabled=false;controls();
  }catch(e){$('#authError').textContent=e.message;}
 }
 startCloud();

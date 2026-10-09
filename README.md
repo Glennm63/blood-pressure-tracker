@@ -71,3 +71,12 @@ Configure `SUPABASE_URL` and `SUPABASE_ACCESS_TOKEN` securely in the administrat
 The tool finds the existing account by email, requires confirmation of the email, and prompts for the new password twice with hidden input. It updates only the password; it does not create another account, change the user ID, confirm an email, or modify readings. Share the new password privately with the verified account owner, who then signs in using their existing email. There is no automatic requirement to change this password at next login. Revoke temporary administrative access when you no longer need it.
 
 Validation: `PYTHONDONTWRITEBYTECODE=1 python3 tests/manual-password-reset.py` exercises account selection and password updates with mocked requests. `--check` verifies real administrative connectivity without changing accounts. An actual password reset is performed only when an administrator selects and confirms a user.
+
+
+## Passkey sign-in
+
+Sign in with your existing email and password, then choose **Options → Add a passkey**. Complete your device's Face ID, Touch ID, PIN, or security-key prompt. On later visits, select **Sign in with a passkey** without entering your email. Password sign-in and manual password recovery remain available. Passkeys require HTTPS and a WebAuthn-capable browser; enrollment requires a confirmed, non-anonymous Supabase account.
+
+Enable **Authentication → Passkeys** in Supabase. Use display name `Pressure`, relying-party ID `blood-pressure-tracker-ashy.vercel.app`, and origin `https://blood-pressure-tracker-ashy.vercel.app`. Keep the relying-party ID stable: changing it makes existing passkeys unusable. Passkeys created for this domain cannot sign in on unrelated Vercel preview domains. The bundled SDK supports passkeys and the client explicitly opts into Supabase's experimental passkey API.
+
+Passkeys are verified and stored by Supabase Auth, not by browser storage or the readings table. Validate enrollment and sign-in on the production domain using a real device. Supabase's passkey API is experimental and may change.
